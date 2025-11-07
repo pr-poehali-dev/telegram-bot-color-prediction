@@ -1,7 +1,8 @@
 import json
 import hashlib
-import itertools
+import random
 import string
+import time
 from typing import Dict, Any
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -52,39 +53,42 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         
         charset = string.ascii_letters + string.digits + '+*%_-'
+        start_time = time.time()
+        max_time = 48
+        total_attempts = 0
         
-        for number in range(37):
-            attempts = 0
-            max_attempts_per_number = 1200000
-            
-            for combo in itertools.product(charset, repeat=10):
-                if attempts >= max_attempts_per_number:
+        while time.time() - start_time < max_time:
+            for number in range(37):
+                if time.time() - start_time >= max_time:
                     break
+                
+                for _ in range(150):
+                    random_part = ''.join(random.choices(charset, k=10))
+                    candidate_key = f"{number}|{random_part}"
                     
-                random_part = ''.join(combo)
-                candidate_key = f"{number}|{random_part}"
-                
-                hash_obj = hashlib.sha1(candidate_key.encode('utf-8'))
-                computed_hash = hash_obj.hexdigest()
-                
-                if computed_hash == target_hash:
-                    return {
-                        'statusCode': 200,
-                        'headers': {
-                            'Content-Type': 'application/json',
-                            'Access-Control-Allow-Origin': '*'
-                        },
-                        'body': json.dumps({
-                            'found': True,
-                            'key': candidate_key,
-                            'number': number,
-                            'hash': target_hash,
-                            'attempts': attempts
-                        }),
-                        'isBase64Encoded': False
-                    }
-                
-                attempts += 1
+                    hash_obj = hashlib.sha1(candidate_key.encode('utf-8'))
+                    computed_hash = hash_obj.hexdigest()
+                    
+                    total_attempts += 1
+                    
+                    if computed_hash == target_hash:
+                        elapsed = round(time.time() - start_time, 2)
+                        return {
+                            'statusCode': 200,
+                            'headers': {
+                                'Content-Type': 'application/json',
+                                'Access-Control-Allow-Origin': '*'
+                            },
+                            'body': json.dumps({
+                                'found': True,
+                                'key': candidate_key,
+                                'number': number,
+                                'hash': target_hash,
+                                'attempts': total_attempts,
+                                'time_taken': elapsed
+                            }),
+                            'isBase64Encoded': False
+                        }
         
         return {
             'statusCode': 200,

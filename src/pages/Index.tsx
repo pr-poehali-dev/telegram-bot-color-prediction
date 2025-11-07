@@ -192,7 +192,7 @@ const Index = () => {
                 {isCalculating ? (
                   <>
                     <Icon name="Loader2" className="animate-spin mr-2" size={20} />
-                    Анализ... (до 35 сек)
+                    Анализ... (до 50 сек)
                   </>
                 ) : (
                   <>
