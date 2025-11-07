@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Find key for hash",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "hash": "fb92946b8e464a14ba164c990f565434dfc9dd4e"
+      },
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    }
+  ]
+}
