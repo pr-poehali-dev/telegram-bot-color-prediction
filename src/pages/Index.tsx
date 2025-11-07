@@ -151,10 +151,10 @@ const Index = () => {
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="text-center mb-8 space-y-4">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-casino-gold to-casino-gold-dark rounded-full mb-4 animate-glow-pulse shadow-2xl shadow-casino-gold/50">
-            <span className="text-4xl">🎰</span>
+            <span className="text-4xl">🎯</span>
           </div>
           <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-casino-gold via-casino-gold-dark to-casino-gold">
-            QALAIS BOT
+            DUWDU BOT
           </h1>
           <p className="text-xl text-muted-foreground">Система предсказаний для рулетки</p>
         </div>
@@ -192,7 +192,7 @@ const Index = () => {
                 {isCalculating ? (
                   <>
                     <Icon name="Loader2" className="animate-spin mr-2" size={20} />
-                    Анализ... (до 15 сек)
+                    Анализ... (до 35 сек)
                   </>
                 ) : (
                   <>

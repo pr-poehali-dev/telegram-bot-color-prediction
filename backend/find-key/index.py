@@ -55,7 +55,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         for number in range(37):
             attempts = 0
-            max_attempts_per_number = 500000
+            max_attempts_per_number = 1200000
             
             for combo in itertools.product(charset, repeat=10):
                 if attempts >= max_attempts_per_number:
