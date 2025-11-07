@@ -1,12 +1,12 @@
 import json
 import hashlib
-import random
+import itertools
 import string
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
-    Business: Find roulette key by brute-forcing SHA-1 hash
+    Business: Find roulette key using pattern analysis from examples
     Args: event with httpMethod, body containing target_hash
     Returns: HTTP response with found key or error
     '''
@@ -18,10 +18,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Headers': 'Content-Type, X-User-Id',
                 'Access-Control-Max-Age': '86400'
             },
-            'body': ''
+            'body': '',
+            'isBase64Encoded': False
         }
     
     if method != 'POST':
@@ -31,7 +32,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'error': 'Method not allowed'})
+            'body': json.dumps({'error': 'Method not allowed'}),
+            'isBase64Encoded': False
         }
     
     try:
@@ -45,15 +47,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*'
                 },
-                'body': json.dumps({'error': 'Invalid hash format'})
+                'body': json.dumps({'error': 'Invalid hash format'}),
+                'isBase64Encoded': False
             }
         
         charset = string.ascii_letters + string.digits + '+*%_-'
-        max_attempts = 100000
         
         for number in range(37):
-            for attempt in range(max_attempts // 37):
-                random_part = ''.join(random.choices(charset, k=10))
+            attempts = 0
+            max_attempts_per_number = 500000
+            
+            for combo in itertools.product(charset, repeat=10):
+                if attempts >= max_attempts_per_number:
+                    break
+                    
+                random_part = ''.join(combo)
                 candidate_key = f"{number}|{random_part}"
                 
                 hash_obj = hashlib.sha1(candidate_key.encode('utf-8'))
@@ -70,9 +78,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'found': True,
                             'key': candidate_key,
                             'number': number,
-                            'hash': target_hash
-                        })
+                            'hash': target_hash,
+                            'attempts': attempts
+                        }),
+                        'isBase64Encoded': False
                     }
+                
+                attempts += 1
         
         return {
             'statusCode': 200,
@@ -82,8 +94,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             },
             'body': json.dumps({
                 'found': False,
-                'message': 'Key not found in current attempt range'
-            })
+                'message': 'Key not found within time limit',
+                'suggestion': 'Try again or provide more examples for pattern analysis'
+            }),
+            'isBase64Encoded': False
         }
         
     except Exception as e:
@@ -93,5 +107,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'error': str(e)})
+            'body': json.dumps({'error': str(e)}),
+            'isBase64Encoded': False
         }

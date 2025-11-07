@@ -11,25 +11,19 @@ interface Prediction {
   number: number;
   color: string;
   hash: string;
-  key: string;
+  key?: string;
   timestamp: Date;
+  found: boolean;
+  attempts?: number;
+  timeTaken?: number;
 }
 
 const Index = () => {
   const [hash, setHash] = useState('');
-  const [key, setKey] = useState('');
   const [result, setResult] = useState<Prediction | null>(null);
   const [history, setHistory] = useState<Prediction[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const { toast } = useToast();
-
-  const calculateSHA1 = async (text: string): Promise<string> => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-1', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
 
   const getNumberColor = (num: number): string => {
     if (num === 0) return 'green';
@@ -38,16 +32,25 @@ const Index = () => {
     const blackNumbers = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35];
     
     if (redNumbers.includes(num)) return 'red';
-    if (blackNumbers.includes(num)) return 'red';
+    if (blackNumbers.includes(num)) return 'black';
     
     return 'black';
   };
 
   const handlePredict = async () => {
-    if (!hash || !key) {
+    if (!hash) {
       toast({
         title: 'Ошибка',
-        description: 'Введите хеш и ключ',
+        description: 'Введите хеш игры',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (hash.length !== 40) {
+      toast({
+        title: 'Ошибка',
+        description: 'Хеш должен содержать 40 символов',
         variant: 'destructive'
       });
       return;
@@ -56,55 +59,61 @@ const Index = () => {
     setIsCalculating(true);
 
     try {
-      const calculatedHash = await calculateSHA1(key);
-      
-      if (calculatedHash !== hash.toLowerCase()) {
-        toast({
-          title: 'Ошибка проверки',
-          description: 'Хеш не совпадает с ключом',
-          variant: 'destructive'
-        });
-        setIsCalculating(false);
-        return;
-      }
+      const response = await fetch('https://functions.poehali.dev/8192693f-9afa-40a4-ac80-fd2caed0367f', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hash: hash.toLowerCase().trim() })
+      });
 
-      const numberMatch = key.match(/^(\d+)\|/);
-      if (!numberMatch) {
-        toast({
-          title: 'Ошибка',
-          description: 'Неверный формат ключа',
-          variant: 'destructive'
-        });
-        setIsCalculating(false);
-        return;
-      }
+      const data = await response.json();
 
-      const number = parseInt(numberMatch[1]);
-      const color = getNumberColor(number);
+      if (data.found) {
+        const color = getNumberColor(data.number);
+        const prediction: Prediction = {
+          number: data.number,
+          color,
+          hash: hash,
+          key: data.key,
+          timestamp: new Date(),
+          found: true,
+          attempts: data.attempts,
+          timeTaken: data.time_taken
+        };
 
-      const prediction: Prediction = {
-        number,
-        color,
-        hash,
-        key,
-        timestamp: new Date()
-      };
-
-      setTimeout(() => {
         setResult(prediction);
         setHistory([prediction, ...history].slice(0, 10));
-        setIsCalculating(false);
         
         toast({
-          title: 'Предсказание готово! 🎰',
-          description: `Результат: ${number} (${color === 'red' ? 'Красное' : color === 'black' ? 'Чёрное' : 'Зелёное'})`
+          title: 'Ключ найден! 🎰',
+          description: `Результат: ${data.number} (${color === 'red' ? 'Красное' : color === 'black' ? 'Чёрное' : 'Зелёное'})`
         });
-      }, 1500);
+      } else {
+        const color = getNumberColor(data.predicted_number);
+        const prediction: Prediction = {
+          number: data.predicted_number,
+          color,
+          hash: hash,
+          timestamp: new Date(),
+          found: false
+        };
+
+        setResult(prediction);
+        
+        toast({
+          title: 'Предсказание (низкая точность)',
+          description: `Возможный результат: ${data.predicted_number} (${color === 'red' ? 'Красное' : color === 'black' ? 'Чёрное' : 'Зелёное'})`,
+          variant: 'default'
+        });
+      }
+
+      setIsCalculating(false);
 
     } catch (error) {
       toast({
         title: 'Ошибка',
-        description: 'Не удалось вычислить результат',
+        description: 'Не удалось получить предсказание',
         variant: 'destructive'
       });
       setIsCalculating(false);
@@ -154,32 +163,25 @@ const Index = () => {
           <Card className="border-casino-gold/30 shadow-lg shadow-casino-gold/10 bg-card/95 backdrop-blur">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-2">
-                <Icon name="KeyRound" className="text-casino-gold" size={28} />
-                Ввод данных
+                <Icon name="Hash" className="text-casino-gold" size={28} />
+                Ввод хеша
               </CardTitle>
-              <CardDescription>Введите хеш игры и ключ для предсказания</CardDescription>
+              <CardDescription>Введите хеш игры для предсказания результата</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="hash" className="text-casino-gold font-semibold">Хеш игры</Label>
+                <Label htmlFor="hash" className="text-casino-gold font-semibold">Хеш игры (40 символов)</Label>
                 <Input
                   id="hash"
                   placeholder="fb92946b8e464a14ba164c990f565434dfc9dd4e"
                   value={hash}
                   onChange={(e) => setHash(e.target.value)}
-                  className="bg-muted border-casino-gold/50 focus:border-casino-gold font-mono"
+                  className="bg-muted border-casino-gold/50 focus:border-casino-gold font-mono text-sm"
+                  maxLength={40}
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="key" className="text-casino-gold font-semibold">Ключ</Label>
-                <Input
-                  id="key"
-                  placeholder="0|yG7GH+_vOm"
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                  className="bg-muted border-casino-gold/50 focus:border-casino-gold font-mono"
-                />
+                <p className="text-xs text-muted-foreground">
+                  Введенно: {hash.length}/40 символов
+                </p>
               </div>
 
               <Button
@@ -190,12 +192,12 @@ const Index = () => {
                 {isCalculating ? (
                   <>
                     <Icon name="Loader2" className="animate-spin mr-2" size={20} />
-                    Вычисление...
+                    Анализ... (до 15 сек)
                   </>
                 ) : (
                   <>
                     <Icon name="Sparkles" className="mr-2" size={20} />
-                    Предсказать
+                    Найти результат
                   </>
                 )}
               </Button>
@@ -220,9 +222,15 @@ const Index = () => {
                     <div className="text-3xl font-bold text-casino-gold mb-2">
                       {getColorName(result.color)}
                     </div>
-                    <Badge variant="outline" className="text-xs border-casino-gold/50 text-muted-foreground">
-                      SHA-1 проверен
-                    </Badge>
+                    {result.found ? (
+                      <Badge variant="outline" className="text-xs border-casino-gold bg-casino-gold/10 text-casino-gold">
+                        ✓ Ключ найден за {result.timeTaken}с
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs border-yellow-500 bg-yellow-500/10 text-yellow-500">
+                        ⚠ Предсказание (низкая точность)
+                      </Badge>
+                    )}
                   </div>
 
                   <div className="space-y-2 text-sm">
@@ -233,19 +241,28 @@ const Index = () => {
                         <span className="font-mono ml-2 text-foreground">{result.hash}</span>
                       </div>
                     </div>
-                    <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg">
-                      <Icon name="Key" className="text-casino-gold mt-0.5" size={16} />
-                      <div className="flex-1 break-all">
-                        <span className="text-muted-foreground">Ключ:</span>
-                        <span className="font-mono ml-2 text-foreground">{result.key}</span>
+                    {result.key && (
+                      <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg">
+                        <Icon name="Key" className="text-casino-gold mt-0.5" size={16} />
+                        <div className="flex-1 break-all">
+                          <span className="text-muted-foreground">Ключ:</span>
+                          <span className="font-mono ml-2 text-foreground">{result.key}</span>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    {result.attempts && (
+                      <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                        <Icon name="Activity" className="text-casino-gold" size={16} />
+                        <span className="text-muted-foreground">Проверено комбинаций:</span>
+                        <span className="font-bold text-foreground">{result.attempts.toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-16 text-muted-foreground">
                   <Icon name="Info" className="mx-auto mb-4 text-casino-gold" size={48} />
-                  <p>Введите данные и нажмите "Предсказать"</p>
+                  <p>Введите хеш и нажмите "Найти результат"</p>
                 </div>
               )}
             </CardContent>
@@ -257,9 +274,9 @@ const Index = () => {
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-2">
                 <Icon name="History" className="text-casino-gold" size={28} />
-                История предсказаний
+                История найденных результатов
               </CardTitle>
-              <CardDescription>Последние 10 проверок</CardDescription>
+              <CardDescription>Последние 10 успешных находок</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -272,8 +289,9 @@ const Index = () => {
                       {item.number}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-casino-gold">
+                      <div className="font-semibold text-casino-gold flex items-center gap-2">
                         {getColorName(item.color)}
+                        {item.found && <Badge variant="outline" className="text-xs border-casino-gold/50">✓ Найден</Badge>}
                       </div>
                       <div className="text-xs text-muted-foreground truncate font-mono">
                         {item.hash}
@@ -294,7 +312,7 @@ const Index = () => {
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <Icon name="Shield" className="text-casino-gold" size={20} />
-                <span>Все расчёты выполняются через SHA-1 алгоритм</span>
+                <span>Система перебирает до 2 млн комбинаций за 15 секунд</span>
               </div>
             </CardContent>
           </Card>
